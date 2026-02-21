@@ -18,14 +18,23 @@ exports.signup = async (req, res) => {
       return res.status(409).json({ message: "admin already exists" });
     }
     const hashedPassword = bcrypt.hash(password, 10);
-    const newAdmin = { firstName, lastName, email, password: hashedPassword, role: 'admin' };
-    const token = jwt
-      .sign()
-      .then(() => Admin.save(newAdmin))
-      .then(() => {
-        return "Signup successful", newAdmin, token;
-      });
-      sendEmail({ email, template: 'adminSignup', adminData: { firstName, lastName } })
+    const admin = {
+      firstName,
+      lastName,
+      email,
+      password: hashedPassword,
+      role: "admin",
+    };
+    const token = jwt.sign(
+      { adminId: admin._id, mail: email, role: role },
+      process.env.JWT_SECRET,
+    );
+    sendEmail({
+      email,
+      template: "adminSignup",
+      adminData: { firstName, lastName },
+    });
+    return res.status(200).json({ message: "successfully signup", token });
   } catch (error) {
     console.error("Failed to sign admin", error);
     return res.status(500).json({ message: "Wait for troubleshoot", error });
@@ -37,13 +46,23 @@ exports.login = async (req, res) => {
   try {
     const adminExists = await Admin.findOne({ email });
     const isMatch = bcrypt.compare({ hashedPassword: password });
-    if (adminExists) {
-      res.status(200).json({ message: "Login succcesful, you can proceed" });
+    if (!adminExists) {
+      res.status(200).json({ message: "Login failed" });
     }
     if (!isMatch) {
       res.status(401).json({ message: "Email or password incorrect" });
     }
-    sendEmail({ email, template: 'adminLogin', adminData: { firstName, lastName } })
+    const token = jwt.sign({
+      adminId: adminExists._id,
+      mail: adminExists.email,
+      role: adminExists.role,
+    });
+    sendEmail({
+      email,
+      template: "adminLogin",
+      adminData: { firstName, lastName },
+    });
+    return res.status(200).json({ message: "Login succcesful, you can proceed", token });
   } catch (error) {
     console.log("Login failed");
     res.status(500).json({ message: "Wait for troubleshooting", error });
